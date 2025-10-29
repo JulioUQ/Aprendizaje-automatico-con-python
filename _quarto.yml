@@ -1,0 +1,12 @@
+project:
+  output-dir: _output
+
+format:
+  html:
+    embed-resources: true
+    code-fold: false
+    code-overflow: wrap
+    code-line-numbers: false
+    output-ext: html
+    standalone: true
+    keep-md: false
