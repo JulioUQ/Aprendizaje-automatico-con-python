@@ -379,3 +379,55 @@ En resumen, para un análisis riguroso y una visualización clara, el flujo de t
 
 1.  **Fase de Clustering:** Utiliza los **embeddings originales (384D)** como entrada para tu algoritmo de clustering.
 2.  **Fase de Visualización:** Una vez se tienen las etiquetas del cluster, se proyectan sobre el plano **UMAP 2D** para poder **interpretar y visualizar** los clusters y sus centroides en un gráfico fácil de entender. 
+
+<div style="background-color: #EDF7FF; border-color: #7C9DBF; border-left: 5px solid #7C9DBF; padding: 0.5em;">
+<strong>Implementación:</strong> Visualiza las recetas en su <strong>espacio original de alta dimensionalidad</strong> utilizando 
+    un <strong>dendrograma</strong>. 
+    Esto te permitirá analizar la estructura de los datos y comparar si las agrupaciones observadas 
+    coinciden con las que aparecían en la proyección 2D de <code>UMAP</code>.
+  <p>
+    Comenta qué puedes inferir al observar el dendrograma:
+    si existen grupos bien definidos o si las fusiones son graduales,
+    y cómo se relaciona esa estructura jerárquica con las regiones que aparecían en la visualización reducida.
+  </p>
+</div>
+
+El objetivo es observar cómo se agrupan las recetas en su espacio original de 384 dimensiones, sin reducir la dimensionalidad. Para ello se ha aplicado un clustering jerárquico aglomerativo, que va uniendo las recetas más parecidas de forma recursiva y genera un árbol jerárquico de fusiones que se puede visualizar mediante un dendrograma.
+ 
+
+> He optado por usar una muestra aleatoria de 30.000 recetas, ya que un dendrograma con 50.000 puntos ha sido costoso computacionalmente (más de 50 min para completar la ejecución de la celda).
+
+```python
+# =============================================================
+# Visualización de la estructura jerárquica
+# =============================================================
+
+# --- Muestra una selección aleatoria (por eficiencia) ---
+# (El dendrograma completo con 50.000 puntos sería ininterpretable)
+n_samples = 30000  # ajusta este valor según rendimiento
+sample_idx = np.random.choice(len(embeddings), n_samples, replace=False)
+embeddings_sample = embeddings[sample_idx]
+
+# --- Cálculo de la matriz de enlace (linkage matrix) ---
+# 'ward' minimiza la varianza dentro de cada grupo
+linkage_matrix = linkage(embeddings, method='ward')
+
+ 
+# --- Visualización del dendrograma ---
+plt.figure(figsize=(14, 6))
+dendrogram(
+    linkage_matrix,
+    truncate_mode='lastp',     # muestra solo las fusiones más altas
+    p=30,                      # número de grupos visibles
+    leaf_rotation=90.,
+    leaf_font_size=10.,
+    show_contracted=True
+)
+
+plt.title("Dendrograma jerárquico de recetas (embeddings originales)")
+plt.xlabel("Recetas (muestra)")
+plt.ylabel("Distancia de fusión")
+plt.tight_layout()
+plt.savefig(r'../Visualizaciones/dendrograma_recetas.png', dpi=300)
+plt.show()
+```
