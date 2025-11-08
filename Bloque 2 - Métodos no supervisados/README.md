@@ -404,15 +404,14 @@ El objetivo es observar cómo se agrupan las recetas en su espacio original de 3
 
 # --- Muestra una selección aleatoria (por eficiencia) ---
 # (El dendrograma completo con 50.000 puntos sería ininterpretable)
-n_samples = 30000  # ajusta este valor según rendimiento
+n_samples = 25000  # ajusta este valor según rendimiento
 sample_idx = np.random.choice(len(embeddings), n_samples, replace=False)
 embeddings_sample = embeddings[sample_idx]
 
 # --- Cálculo de la matriz de enlace (linkage matrix) ---
 # 'ward' minimiza la varianza dentro de cada grupo
-linkage_matrix = linkage(embeddings, method='ward')
+linkage_matrix = linkage(embeddings_sample, method='ward')
 
- 
 # --- Visualización del dendrograma ---
 plt.figure(figsize=(14, 6))
 dendrogram(
@@ -424,7 +423,7 @@ dendrogram(
     show_contracted=True
 )
 
-plt.title("Dendrograma jerárquico de recetas (embeddings originales)")
+plt.title("Dendrograma jerárquico de recetas (embeddings muestreados)")
 plt.xlabel("Recetas (muestra)")
 plt.ylabel("Distancia de fusión")
 plt.tight_layout()
