@@ -168,50 +168,28 @@ A continuación genero los [embeddings](https://openwebinars.net/blog/embeddings
 ```python
 from sentence_transformers import SentenceTransformer
 
-  
-
 # =============================================================
-
 # Carga del modelo de embeddings semánticos
-
-# =============================================================
-
-  
+# ============================================================
 
 # all-MiniLM-L6-v2 es un modelo ligero y eficiente (384 dimensiones)
-
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-  
-
 # --- Generación de embeddings a partir del texto unificado ---
-
 # Uso batch_size alto para eficiencia y barra de progreso para seguimiento
 
 embeddings = model.encode(
-
     df['text_full'].tolist(),
-
     batch_size=64,              
-
     show_progress_bar=True,
-
     convert_to_numpy=True
-
 )
-
   
-
 # --- Almacenamos los embeddings como columna separada o matriz ---
-
 df['embedding'] = list(embeddings)
 
-  
-
 # Verificamos tamaño y forma
-
 print(f"Embeddings generados: {embeddings.shape}")
-
 print(df[['name', 'embedding']].head(3))
 ```
 
@@ -237,55 +215,31 @@ Una vez obtenidos los embeddings semánticos, se reducen a 2 las dimensiones uti
 
 ```python
 # =============================================================
-
 # Configuración y aplicación de UMAP
-
 # =============================================================
 
-  
-
 # n_neighbors controla la preservación de la estructura local
-
 # min_dist regula la compactación del mapa (valores bajos agrupan más los puntos)
-
 # random_state fija la semilla para reproducibilidad
 
 reducer = umap.UMAP(
-
     n_neighbors=15,
-
     min_dist=0.1,
-
     n_components=2,
-
     metric='cosine', # Siguiendo documentacion de all-MiniLM-L6-v2
-
     random_state=42
-
 )
 
-  
-
 # --- Reducción de dimensionalidad ---
-
 embeddings_2d = reducer.fit_transform(embeddings)
 
-  
-
 # --- Almaceno las coordenadas 2D en el DataFrame ---
-
 df['umap_x'] = embeddings_2d[:, 0] # type: ignore
-
 df['umap_y'] = embeddings_2d[:, 1] # type: ignore
-
   
-
 # --- Verificación del resultado ---
-
 print("Reducción UMAP completada.")
-
 print(f"Shape del embedding reducido: {embeddings_2d.shape}") # type: ignore
-
 print(df[['name', 'umap_x', 'umap_y']].head(3))
 ```
 
@@ -314,49 +268,27 @@ Reducción UMAP completada. Shape del embedding reducido: (50000, 2) name umap_x
 
 ```python
 # =============================================================
-
 # Visualización de los embeddings reducidos con UMAP
-
 # =============================================================
 
-  
-
 # Ajusto el tamaño de los puntos (más pequeño = menos solapamiento)
-
 # Transparencia (menor = más fácil ver densidad)
-
 plt.figure(figsize=(10, 8))
-
 plt.scatter(
-
     df['umap_x'],
-
     df['umap_y'],
-
     s=5,        
-
     alpha=0.3,    
-
     c='steelblue',
-
     edgecolors='none'
-
 )
 
-  
-
 plt.title("Visualización 2D de embeddings de recetas (UMAP)", fontsize=14)
-
 plt.xlabel("UMAP 1")
-
 plt.ylabel("UMAP 2")
-
 plt.grid(True, linestyle='--', alpha=0.3)
-
 plt.tight_layout()
-
 plt.savefig(r'../Visualizaciones/embeddings_reducidos_con_UMAP.png', dpi=300)
-
 plt.show()
 ```
 
@@ -394,7 +326,6 @@ En resumen, para un análisis riguroso y una visualización clara, el flujo de t
 
 El objetivo es observar cómo se agrupan las recetas en su espacio original de 384 dimensiones, sin reducir la dimensionalidad. Para ello se ha aplicado un clustering jerárquico aglomerativo, que va uniendo las recetas más parecidas de forma recursiva y genera un árbol jerárquico de fusiones que se puede visualizar mediante un dendrograma.
  
-
 > He optado por usar una muestra aleatoria de 30.000 recetas, ya que un dendrograma con 50.000 puntos ha sido costoso computacionalmente (más de 50 min para completar la ejecución de la celda).
 
 ```python
@@ -430,3 +361,6 @@ plt.tight_layout()
 plt.savefig(r'../Visualizaciones/dendrograma_recetas.png', dpi=300)
 plt.show()
 ```
+
+---
+
