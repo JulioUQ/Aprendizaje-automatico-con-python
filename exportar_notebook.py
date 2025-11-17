@@ -19,11 +19,9 @@ class ProgressWindow:
         y = (self.window.winfo_screenheight() // 2) - (150 // 2)
         self.window.geometry(f"500x150+{x}+{y}")
         
-        # Etiqueta de estado
         self.label = Label(self.window, text="Preparando ejecución...", font=("Arial", 10))
         self.label.pack(pady=20)
         
-        # Barra de progreso
         self.progress = ttk.Progressbar(
             self.window, 
             length=450, 
@@ -32,7 +30,6 @@ class ProgressWindow:
         )
         self.progress.pack(pady=10)
         
-        # Etiqueta de progreso
         self.progress_label = Label(self.window, text="0 / 0 celdas ejecutadas", font=("Arial", 9))
         self.progress_label.pack(pady=5)
         
@@ -59,18 +56,15 @@ class CustomExecutePreprocessor(ExecutePreprocessor):
         self.progress_window = progress_window
     
     def preprocess_cell(self, cell, resources, cell_index):
-        # Actualizar ventana de progreso
         if self.progress_window:
             self.progress_window.update(cell_index, cell.cell_type)
         return super().preprocess_cell(cell, resources, cell_index)
 
 def export_notebook():
-    # Ocultar la ventana principal de Tkinter
     root = Tk()
     root.withdraw()
     root.attributes('-topmost', True)
     
-    # Seleccionar el notebook de entrada
     print("Selecciona el archivo Jupyter Notebook (.ipynb)...")
     ipynb_path = filedialog.askopenfilename(
         title="Seleccionar Notebook",
@@ -84,13 +78,17 @@ def export_notebook():
     
     print(f"✔ Archivo seleccionado: {ipynb_path}")
     
-    # Preguntar si mostrar el código
+    # NUEVO → Preguntar si ejecutar
+    ejecutar = messagebox.askyesno(
+        "Ejecutar notebook",
+        "¿Deseas ejecutar las celdas del notebook antes de exportarlo?"
+    )
+    
     mostrar_codigo = messagebox.askyesno(
         "Mostrar código",
         "¿Deseas incluir el código en el informe HTML?"
     )
     
-    # Seleccionar ubicación de salida
     print("Selecciona dónde guardar el archivo HTML...")
     output_path = filedialog.asksaveasfilename(
         title="Guardar informe HTML como",
@@ -109,56 +107,58 @@ def export_notebook():
     progress_window = None
     
     try:
-        # Leer el notebook
         print("\n📖 Leyendo notebook...")
         nb = nbformat.read(ipynb_path, as_version=4)
         
-        # Contar celdas de código
         total_cells = len(nb.cells)
         print(f"📊 Total de celdas: {total_cells}")
         
-        # Crear ventana de progreso
-        progress_window = ProgressWindow(total_cells)
-        progress_window.set_text("Iniciando ejecución del notebook...")
+        # SI EL USUARIO QUIERE EJECUTAR EL NOTEBOOK
+        if ejecutar:
+            progress_window = ProgressWindow(total_cells)
+            progress_window.set_text("Iniciando ejecución del notebook...")
+            
+            print("⚙️ Ejecutando notebook...")
+            ep = CustomExecutePreprocessor(
+                progress_window,
+                timeout=600, 
+                kernel_name='python3'
+            )
+            
+            ep.preprocess(nb, {'metadata': {'path': os.path.dirname(ipynb_path) or '.'}})
+            
+            progress_window.set_text("✔ Notebook ejecutado correctamente")
+            print("✔ Notebook ejecutado correctamente")
         
-        # Ejecutar el notebook con seguimiento de progreso
-        print("⚙️ Ejecutando notebook...")
-        ep = CustomExecutePreprocessor(
-            progress_window,
-            timeout=600, 
-            kernel_name='python3'
-        )
+        else:
+            print("⏩ Se omite la ejecución del notebook. Se exportará tal cual.")
         
-        ep.preprocess(nb, {'metadata': {'path': os.path.dirname(ipynb_path) or '.'}})
-        
-        progress_window.set_text("✔ Notebook ejecutado correctamente")
-        print("✔ Notebook ejecutado correctamente")
-        
-        # Exportar a HTML
-        progress_window.set_text("📄 Generando HTML...")
+        # Exportar HTML
+        if progress_window:
+            progress_window.set_text("📄 Generando HTML...")
         print("📄 Generando HTML...")
+        
         exporter = HTMLExporter()
         exporter.exclude_input = not mostrar_codigo
         
         body, _ = exporter.from_notebook_node(nb)
         
-        # Guardar el archivo
-        progress_window.set_text("💾 Guardando archivo...")
+        if progress_window:
+            progress_window.set_text("💾 Guardando archivo...")
+        
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(body)
         
-        progress_window.close()
-        progress_window = None
+        if progress_window:
+            progress_window.close()
+            progress_window = None
         
         print(f"\n✅ ¡Informe generado exitosamente!")
         print(f"📁 Ubicación: {output_path}")
         
-        # Preguntar si abrir el archivo
         if messagebox.askyesno("Éxito", "Informe generado correctamente.\n¿Deseas abrirlo ahora?"):
-            os.startfile(output_path)  # Windows
-            # Para Linux usar: os.system(f'xdg-open "{output_path}"')
-            # Para Mac usar: os.system(f'open "{output_path}"')
-        
+            os.startfile(output_path)
+    
     except Exception as e:
         if progress_window:
             progress_window.close()
