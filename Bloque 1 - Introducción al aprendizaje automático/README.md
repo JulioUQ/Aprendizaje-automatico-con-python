@@ -1,4 +1,3 @@
-
 # 🧩 Bloque 1 — Preparación de Datos y Fundamentos del Proyecto de Minería de Datos
 
 ## 📄 Descripción del bloque
@@ -38,6 +37,3 @@ El bloque incluye vídeos introductorios, materiales docentes y ejemplos prácti
 Se recomienda consultar los ejemplos disponibles en el repositorio oficial de la asignatura:
 
 > Repositorio de ejemplos: _(GitLab de la UOC)_
-
-
-    

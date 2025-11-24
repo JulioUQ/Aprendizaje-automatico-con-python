@@ -1,0 +1,10 @@
+matplotlib
+seaborn
+numpy
+pandas
+scipy
+sentence-transformers
+scikit-learn
+hdbscan
+tqdm
+umap-learn
