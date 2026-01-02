@@ -23,3 +23,11 @@ Se deberán entregar el fichero **.ipynb** y su exportación en **HTML**, ase
 - **Enunciado (Lectura):** [`M2_891_PEC4_Enunciado.html`](https://aula.uoc.edu/courses/69096/files/10025348?wrap=1 "M2_891_20251_PEC4_Enunciado.html")
 - **Dataset:** [`wind_turbine_data.csv`](https://aula.uoc.edu/courses/69096/files/10025349?wrap=1 "wind_turbine_data.csv")
 - **Requisitos:** [Entorno estándar (Docker/Anaconda) con librerías actualizadas.](https://aula.uoc.edu/courses/69096/files/10025350?wrap=1 "environment_uoc20251pec4.yml")
+
+
+
+----
+
+
+Actividad 4:
+
