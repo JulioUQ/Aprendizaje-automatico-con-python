@@ -69,25 +69,25 @@ El objetivo no es solo implementar los algoritmos, sino sobre todo analizar en p
 
 ## **Funciones auxiliares**
 
-He creado cuarto funciones que me permitirán **evaluar rápidamente la calidad y estructura de los datos** antes de realizar análisis más detallados:
+He creado cinco funciones que me permitirán **evaluar rápidamente la calidad y estructura de los datos** antes de realizar análisis más detallados:
 
 - La primera, **`describe_df()`**, genera un resumen completo del DataFrame, mostrando su forma, tipos de datos, valores nulos, número de valores únicos y estadísticas básicas para las columnas numéricas.
 - La segunda, **`frequency_table()`**, genera una tabla de frecuencias y porcentajes para una lista de columnas dadas, lo que me permite obtener un resumen rápido de la distribución de los valores en cada columna.
 - La tercera, **`correlation_matrix()`**, genera una matriz de correlación para una lista de columnas dadas, lo que me permite obtener un resumen rápido de la correlación entre las variables.
 - La cuarta, **`detect_outliers()`**, detecta valores atípicos en todas las columnas numéricas usando el método IQR.
+- La quinta, **`evaluate_model()`**, evalúa el rendimiento de los modelos.
 
 ```python
 def describe_df(data):
-
     """
-    Proporciona un resumen detallado del DataFrame, incluyendo un mensaje inicial con su forma, estadísticas, valores nulos y los dos valores más frecuentes por columna.
+    Proporciona un resumen detallado del DataFrame, incluyendo un mensaje inicial con su forma,
+    estadísticas, valores nulos y los dos valores más frecuentes por columna.
     """
-
     # Mensaje informativo antes de la tabla
     print(f"El dataframe tiene {data.shape[1]} columnas y {data.shape[0]} filas.\n")
 
     total = len(data)
-
+    
     # Base del resumen
     summary = pd.DataFrame({
         'Column': data.columns,
@@ -104,16 +104,13 @@ def describe_df(data):
         describe_stats = describe_stats.rename(columns={'50%': 'median'})[
             ['mean', 'median', 'std', 'min', '25%', '75%', 'max']
         ]
-
         describe_stats.reset_index(inplace=True)
         describe_stats.rename(columns={'index': 'Column'}, inplace=True)
-
         summary = pd.merge(summary, describe_stats, on='Column', how='left')
-
     return summary
 
-def frequency_table(df, columns):
 
+def frequency_table(df, columns):
     """
     Genera un único DataFrame con el análisis de frecuencias y porcentajes
     para una lista de columnas dadas.
@@ -133,15 +130,14 @@ def frequency_table(df, columns):
             'Recuento': counts.values,
             'Porcentaje (%)': percentages.values
         })
-
         results.append(temp_df)
 
     # Concatenar todos los resultados en una sola tabla
     final_table = pd.concat(results, ignore_index=True)
     return final_table
 
-def correlation_analysis(df, exclude_cols, save_path=None):
 
+def correlation_analysis(df, exclude_cols, save_path=None):
     """
     Genera un análisis de correlación entre variables numéricas.
     """
@@ -155,7 +151,6 @@ def correlation_analysis(df, exclude_cols, save_path=None):
     plt.figure(figsize=(12, 8))
     sns.heatmap(corr_matrix, mask=mask, cmap="RdBu_r", center=0, annot=True, fmt=".2f", linewidths=.5)
     plt.title("Matriz de Correlación: Interdependencia entre Sensores", fontsize=15, pad=20)
-
     if save_path:
         directory = os.path.dirname(save_path)
         if directory and not os.path.exists(directory): os.makedirs(directory)
@@ -174,7 +169,6 @@ def correlation_analysis(df, exclude_cols, save_path=None):
                 'Corr': val,
                 'Abs_Corr': abs(val)
             })
-
     pairs_df = pd.DataFrame(pairs_list)
 
     # Clasificación según tus umbrales estrictos
@@ -187,18 +181,14 @@ def correlation_analysis(df, exclude_cols, save_path=None):
 
     # Selección de las "Top 3" de cada categoría
     fuertes = pairs_df[pairs_df['Tipo'] == 'Fuerte'].sort_values('Abs_Corr', ascending=False).head(3)
-
     moderadas = pairs_df[pairs_df['Tipo'] == 'Moderada'].sort_values('Abs_Corr', ascending=False).head(3)
-
     debiles = pairs_df[pairs_df['Tipo'] == 'Débil'].sort_values('Abs_Corr', ascending=False).head(3)
 
     resumen = pd.concat([fuertes, moderadas, debiles]).reset_index(drop=True)
-
     return resumen[['Tipo', 'Var1', 'Var2', 'Corr']]
 
 
 def detect_outliers(df):
-
     """
     Detecta valores atípicos en todas las columnas numéricas usando el método IQR.
     Retorna un DataFrame con el recuento y el porcentaje de outliers por columna.
@@ -207,6 +197,7 @@ def detect_outliers(df):
     # Seleccionar solo columnas numéricas
     numeric_cols = df.select_dtypes(include=['number']).columns
     outlier_data = []
+
 
     for col in numeric_cols:
         # Calcular Q1 (percentil 25) y Q3 (percentil 75)
@@ -237,6 +228,14 @@ def detect_outliers(df):
 
     # Ordenar por mayor número de outliers
     return summary.sort_values(by='Outliers', ascending=False).reset_index(drop=True)
+
+
+def evaluate_model(name, y_true, y_pred):
+    """
+    Evalúa el desempeño de un modelo de clasificación.
+    """
+    print(f"\n{name}")
+    print(classification_report(y_true, y_pred, digits=3))
 ```
 
 ## **1. Carga, Análisis Exploratorio Crítico y Limpieza de Datos (1 punto)**
@@ -261,11 +260,11 @@ def detect_outliers(df):
 
 ```python
 # Proporciona funciones para interactuar con el sistema operativo (como rutas de archivos)
-import os  
+import os   
 
 # Permite modificar aspectos del entorno de ejecución de Python, como la lista de rutas de búsqueda de módulos (sys.path)
 import sys
-  
+
 # Sube un nivel desde /PEC/
 root_dir = os.path.abspath('..')  
 sys.path.append(root_dir)
@@ -280,17 +279,35 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 # Librerías necesarias para el preprocesamiento de datos
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler
+
+# Librerías necesarias para el entrenamiento de modelos
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.ensemble import RandomForestClassifier
+
+# Librerías necesarias para la evaluación de modelos y tunning
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import GridSearchCV
 
 # Librerías necesarias para el entrenamiento y evaluación de modelos
 from sklearn.model_selection import train_test_split
+```
 
+Carga el dataset <code>wind_turbine_data.csv</code>.
+
+```python
 # Ruta del dataset
 path = r"..\Data\wind_turbine_data.csv"
 
 # Cargar el dataset
 df = pd.read_csv(path)
+
 df.head()
 ```
 
@@ -857,6 +874,11 @@ En resumen, en un problema de mantenimiento predictivo, donde los valores anóma
 
 ### 2.1. Regresión Logística (`LogisticRegression`)
 
+La regresión logística es un modelo lineal probabilístico que estima la probabilidad de pertenencia a cada clase a partir de una combinación lineal de las variables de entrada. En este caso se utiliza su extensión **multiclase**, adecuada para predecir los tres estados operativos de la turbina.
+
+- **Fortalezas**: modelo interpretable, robusto y eficiente; buen punto de partida para establecer una baseline.
+- **Debilidades**: incapacidad para capturar relaciones no lineales complejas entre sensores, algo esperable en sistemas físicos como turbinas eólicas.
+
 ```python
 log_reg = Pipeline(steps=[
     ('preprocessor', preprocessor),
@@ -874,6 +896,11 @@ y_pred_log = log_reg.predict(X_test)
 
 ### 2.2. Árbol de Decisión (`DecisionTreeClassifier`)
 
+El árbol de decisión aprende reglas jerárquicas basadas en divisiones sucesivas del espacio de características. Es capaz de capturar relaciones no lineales y efectos de interacción entre variables.
+
+- **Fortalezas**: buena interpretabilidad, capacidad para modelar comportamientos no lineales.
+- **Debilidades**: tendencia al sobreajuste si no se regulariza, especialmente con datos ruidosos.
+
 ```python
 dt = Pipeline(steps=[
     ('preprocessor', preprocessor),
@@ -888,6 +915,11 @@ y_pred_dt = dt.predict(X_test)
 ```
 
 ### 2.3. K vecinos cercanos (`KNeighborsClassifier`)
+
+KNN es un método basado en instancias que clasifica una observación en función de las clases de sus vecinos más cercanos en el espacio de características. Es especialmente sensible a la escala de las variables, por lo que se aplica estandarización.
+
+- **Fortalezas**: buen rendimiento cuando existen patrones locales claros en los datos.
+- **Debilidades**: coste computacional elevado y menor capacidad de generalización; sensible al
 
 ```python
 knn_preprocessor = ColumnTransformer(
@@ -908,6 +940,11 @@ y_pred_knn = knn.predict(X_test)
 
 ### 2.4. Clasificador Naïves-Bayes (`GaussianNB`)
 
+Naïve Bayes es un clasificador probabilístico basado en el teorema de Bayes, que asume independencia condicional entre las variables dadas la clase. Aunque esta suposición rara vez se cumple, el modelo suele funcionar razonablemente bien como baseline.
+
+- **Fortalezas**: muy rápido, simple y robusto como modelo base.
+- **Debilidades**: la fuerte suposición de independencia limita su capacidad predictiva en sistemas complejos como una turbina.
+
 ```python
 X_train_nb = preprocessor.fit_transform(X_train)
 X_test_nb = preprocessor.transform(X_test)
@@ -918,6 +955,17 @@ y_pred_nb = nb.predict(X_test_nb)
 ```
 
 ### 2.5. Evaluación de modelos
+
+**Comparación entre modelos:**
+
+* **Regresión Logística (Accuracy: 0.61, F1-score macro: 0.59)**, muestra un rendimiento aceptable para las clases Normal y Warning, pero tiene dificultades claras para identificar correctamente la clase Failure, que es la más crítica desde el punto de vista operativo.
+* **Arbol de decisión (Accuracy: 0.65, F1-score macro: 0.61)**, mejora ligeramente a la regresión logística, mostrando un equilibrio más homogéneo entre clases, aunque sigue teniendo margen de mejora en la detección de fallos críticos.
+* **KNN (Accuracy: 0.75, F1-score macro: 0.69)**, es el modelo con mejor accuracy global. Sin embargo, su *recall* para la clase *Failure* es bajo (0.36), lo que lo hace menos fiable para detectar fallos críticos, a pesar de su buen rendimiento medio.
+* **Naïve Bayes (Accuracy: 0.66, F1-score macro: 0.63)**, ofrece un rendimiento estable y equilibrado, similar al árbol de decisión, pero sin destacar claramente en ninguna clase.
+
+**Métrica más informativa:**
+
+En este problema, la **métrica más relevante es el *recall* por clase, especialmente para la clase *Failure***. Desde el punto de vista del mantenimiento predictivo, **no detectar un fallo crítico es mucho más costoso que una falsa alarma**, por lo que métricas agregadas como la accuracy pueden resultar engañosas.
 
 ```python
 evaluate_model("Logistic Regression", y_test, y_pred_log)
@@ -930,3 +978,306 @@ Logistic Regression precision recall f1-score support 0 0.781 0.574 0.662 298 1 
 
 ---
 
+## 3. Combinación paralela de clasificadores de base similar: Bagging (1.5 puntos)
+
+1. Implementa `RandomForestClassifier`.
+2. Realiza una búsqueda y ajuste (tuning) de hiperparámetros clave (n_estimators, max_depth, max_features) utilizando validación cruzada (ej., GridSearchCV o RandomizedSearchCV con 5-CV). Define un rango de búsqueda razonable para cada hiperparámetro y usa la métrica que justificaste como más informativa en el punto anterior para la optimización.
+3. Reporta los mejores hiperparámetros encontrados y el score de validación cruzada obtenido con ellos.
+   
+### **3.1. Implementación de `RandomForestClassifier`**
+
+Antes de ajustar hiperparámetros, inicio con la definición básica del modelo, integrándolo en un _Pipeline_ para mantener la misma preparación de datos que en los modelos base:
+
+```python
+rf = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('model', RandomForestClassifier(
+        random_state=42,
+        class_weight='balanced'
+    ))
+])
+```
+
+**Random Forest** es un método ensemble basado en múltiples árboles de decisión que se entrenan sobre subconjuntos aleatorios de datos y características. La predicción final se obtiene por voto mayoritario de los árboles individuales. Esta estrategia permite **reducir la varianza** del modelo y controlar el sobreajuste típico de árboles individuales. [scikit-learn.org](https://scikit-learn.org/1.5/modules/generated/sklearn.ensemble.RandomForestClassifier.html?utm_source=chatgpt.com)
+
+### **3.2. Búsqueda y ajuste de hiperparámetros con `GridSearchCV`**
+
+Con el fin de optimizar el rendimiento del modelo, se ha realizado una búsqueda exhaustiva de hiperparámetros mediante `GridSearchCV` con validación cruzada de 5 particiones (5-CV).
+
+La métrica empleada para la optimización ha sido el **F1-score macro**, ya que, como se justificó en el apartado anterior, permite evaluar de forma equilibrada el rendimiento sobre todas las clases, sin verse dominada por la clase mayoritaria.
+
+Los hiperparámetros ajustados han sido:
+
+* `n_estimators`: número de árboles del bosque. Un mayor número suele mejorar la estabilidad del modelo a costa de mayor coste computacional.
+* `max_depth`: profundidad máxima de los árboles, utilizada para controlar la complejidad del modelo y evitar sobreajuste.
+* `max_features`: número de características consideradas en cada división, que introduce aleatoriedad y reduce la correlación entre árboles.
+
+```python
+param_grid = {
+    'model__n_estimators': [100, 200, 300],
+    'model__max_depth': [None, 10, 20],
+    'model__max_features': ['sqrt', 'log2']
+}
+
+grid_rf = GridSearchCV(
+    rf,
+    param_grid=param_grid,
+    cv=5,
+    scoring='f1_macro',
+    n_jobs=-1
+)
+
+grid_rf.fit(X_train, y_train)
+```
+
+### **3.3. Mejores hiperparámetros y score de validación cruzada**
+
+Tras completar la búsqueda de hiperparámetros, se obtuvieron los siguientes resultados:
+
+* **Mejores hiperparámetros**:
+    * `max_depth` = 10
+    * `max_features` = sqrt
+    * `n_estimators` = 300
+
+* **Mejor F1-score macro (validación cruzada)**: 0.742
+
+Estos resultados indican que un bosque relativamente profundo pero controlado (`max_depth` = 10), con un número elevado de árboles y selección aleatoria de características, proporciona el mejor compromiso entre sesgo y varianza. El valor del **F1-score macro confirma una mejora clara respecto a los modelos base**, especialmente en la capacidad del modelo para clasificar correctamente las clases minoritarias.
+
+```python
+best_params = grid_rf.best_params_
+best_score = grid_rf.best_score_
+
+print("Mejores hiperparámetros:", best_params)
+print("Mejor F1-score (validación cruzada):", best_score)
+```
+
+Mejores hiperparámetros: {'model__max_depth': 10, 'model__max_features': 'sqrt', 'model__n_estimators': 300} Mejor puntuación: 0.7417070231475612
+
+**Interpretación típica** (los valores concretos dependen de tu ejecución, pero en general):
+
+- **n_estimators** grandes suelen mejorar la estabilidad del modelo hasta cierto punto (reduciendo varianza). [datacamp.com](https://www.datacamp.com/es/tutorial/random-forests-classifier-python?utm_source=chatgpt.com)
+- **max_depth** controla el sesgo–varianza: valores muy altos permiten árboles complejos pero pueden sobreajustar, valores moderados suelen generalizar mejor. [upGrad](https://www.upgrad.com/blog/random-forest-hyperparameter-tuning/?utm_source=chatgpt.com)
+- **max_features** ajusta la aleatoriedad en divisiones: `"sqrt"` y `"log2"` son opciones clásicas para clasificación, con un buen equilibrio entre sesgo y varianza. [sklearner.com](https://sklearner.com/sklearn-randomforestclassifier-max_features-parameter/?utm_source=chatgpt.com)
+
+El mejor _score_ que devuelve `GridSearchCV` representa el **F1-score macro promedio de las 5 particiones**, que refleja cuán bien el modelo balancea precisión y recall en todas las clases.
+
+
+4. Valida (con el conjunto de datos de validación) el modelo Random Forest final (entrenado con los mejores hiperparámetros sobre todo el set de entrenamiento).
+
+5. Muestra un gráfico de la importancia de las características (feature_importance_) del modelo final
+
+6. **Análisis Crítico:** Compara el rendimiento de tu Random Forest optimizado con los modelos base (refiérete a los valores específicos de las métricas que obtuviste). ¿Logró RF una mejora sustancial, especialmente en las clases minoritarias? Analiza tu gráfico de importancia de características: ¿Qué variables parecen ser las más relevantes según RF? ¿Tiene sentido este resultado? ¿Identifica RF algunas de las variables categóricas que se habían identificado como importantes?
+
+### **3.4. Validación del Random Forest final**
+
+Una vez identificados los mejores hiperparámetros mediante validación cruzada, se entrena el modelo Random Forest final sobre todo el conjunto de entrenamiento y se evalúa su rendimiento sobre el conjunto de test reservado.
+
+```python
+# Entrenar el modelo final con los mejores hiperparámetros
+best_rf = grid_rf.best_estimator_
+y_pred_rf = best_rf.predict(X_test)
+
+# Evaluación del modelo final
+evaluate_model("Random Forest (optimizado)", y_test, y_pred_rf)
+```
+
+Random Forest (optimizado) precision recall f1-score support 0 0.814 0.866 0.839 298 1 0.758 0.796 0.776 181 2 0.710 0.545 0.617 121 accuracy 0.780 600 macro avg 0.760 0.736 0.744 600 weighted avg 0.776 0.780 0.775 600
+
+El modelo *Random Forest* optimizado muestra un rendimiento claramente superior a todos los modelos base:
+
+* `Accuracy` global: 0.78 (vs. 0.75 del mejor modelo base, KNN)
+* `F1-score macro`: 0.74 (vs. 0.69 de KNN)
+* `Recall` en clase *Failure* (2): 0.55 (mejora sustancial respecto a los 0.36 de KNN)
+
+> Este resultado confirma que el enfoque ensemble y la optimización de hiperparámetros han permitido mejorar significativamente la detección de fallos críticos.
+
+### **3.5. Importancia de las características (feature_importance_) del modelo final**
+
+Random Forest proporciona una medida de importancia de variables basada en la reducción media de impureza (Gini) que cada característica aporta a través de todos los árboles del bosque.
+
+```python
+# Extraer importancias del modelo entrenado
+rf_model = best_rf.named_steps['model']
+feature_names = best_rf.named_steps['preprocessor'].get_feature_names_out()
+importances = rf_model.feature_importances_
+
+# Crear DataFrame para visualización
+feature_importance_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': importances
+}).sort_values(by='Importance', ascending=False)
+
+# Visualización de las 15 características más importantes
+plt.figure(figsize=(12, 8))
+top_features = feature_importance_df.head(15)
+plt.barh(top_features['Feature'], top_features['Importance'], color='steelblue')
+plt.xlabel('Importancia (reducción de impureza)', fontsize=12)
+plt.ylabel('Característica', fontsize=12)
+plt.title('Top 15 Características más importantes - Random Forest', fontsize=14, pad=20)
+plt.gca().invert_yaxis()
+plt.tight_layout()
+plt.savefig(r'..\Visualizaciones\rf_feature_importance.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+# Mostrar tabla completa ordenada
+print("\n=== Importancia de todas las características ===\n")
+print(feature_importance_df.to_string(index=False))
+```
+
+![[Pasted image 20260104150532.png]]
+
+=== Importancia de todas las características === Feature Importance num__Rotor_Blade_Angle_1 0.09 num__Gearbox_Vibration_Y 0.09 num__Grid_Frequency_Hz 0.07 num__Hydraulic_Oil_Pressure 0.06 num__Gen_Output_Voltage 0.06 num__Gearbox_Bearing_Temp 0.06 num__Rotor_Wind_Speed 0.05 num__Gen_Avg_RPM 0.05 num__Rotor_Shaft_Vibration 0.05 num__Gen_Coil_Temp 0.05 num__Amb_Wind_Turbulence 0.05 num__Hydraulic_Tank_Level 0.04 num__Amb_Ext_Temp 0.04 cat__Turbine_Model_Turbine_Model_C 0.03 cat__Turbine_Model_Turbine_Model_A 0.03 num__System_Efficiency_Calc 0.03 num__Hydraulic_Oil_Temp 0.02 num__Gearbox_Vibration_X 0.02 num__Rotor_Blade_Angle_2 0.02 num__Amb_Humidity 0.02 num__Tower_Oscillation 0.02 num__Tower_Fatigue_Index 0.02 cat__Installation_Region_South_Plains 0.01 cat__Turbine_Model_Turbine_Model_B 0.01 cat__Turbine_Model_Turbine_Model_D 0.01 cat__Installation_Region_North_Coast 0.01 cat__Installation_Region_High_Mountains 0.00 cat__Installation_Region_Interior_Valley 0.00
+
+### **3.6. Análisis crítico: Comparación con modelos base**
+
+#### **3.6.1. Comparación cuantitativa**
+
+| Modelo | Accuracy | F1-macro | Recall Failure |
+|--------|----------|----------|----------------|
+| Logistic Regression | 0.608 | 0.591 | 0.562 |
+| Arbol de Decision | 0.650 | 0.609 | 0.430 |
+| KNN | 0.753 | 0.687 | 0.355 |
+| Naive Bayes | 0.658 | 0.627 | 0.537 |
+| **Random Forest** | **0.780** | **0.744** | **0.545** |
+
+#### **3.6.2. ¿Logró RF una mejora sustancial, especialmente en las clases minoritarias?**
+
+Sí. *Random Forest* supera a todos los modelos base en accuracy (+2.7% vs KNN) y F1-macro (+5.7% vs KNN). Para la clase *Failure*, el *recall* (0.545) mejora +53.5% respecto a KNN (0.355) y +26.7% respecto al Arbol de Decisión (0.430). Aunque no supera a *Logistic Regression* en *recall* puro, **Random Forest logra el mejor equilibrio precision-recall**, con un F1-score de 0.617 para Failure (vs 0.477 de Logistic Regression). En la clase *Warning*, el *recall* alcanza 0.796, el mejor de todos los modelos.
+
+#### **3.6.3. Análisis de importancia de características:**
+
+Las variables más relevantes son:
+1. `Rotor_Blade_Angle_1` (0.09) y `Gearbox_Vibration_Y` (0.09)
+2. `Grid_Frequency_Hz` (0.07)
+3. `Hydraulic_Oil_Pressure`, `Gen_Output_Voltage`, `Gearbox_Bearing_Temp` (0.06)
+
+#### **3.6.4. ¿Tiene sentido este resultado?**
+
+Sí. Las variables de vibración, mecánicas y eléctricas son indicadores directos de fallos en turbinas. `Rotor_Blade_Angle_1` como variable más importante es coherente, ya que desviaciones en el ángulo de las palas reflejan problemas en el sistema de control. Las variables térmicas (`Gearbox_Bearing_Temp`, `Gen_Coil_Temp`) y de presión hidráulica confirman que el sobrecalentamiento y la presión inadecuada son precursores de fallo.
+
+#### **3.6.5. ¿Identifica RF las variables categóricas como importantes?**
+
+Sí, aunque con importancias individuales menores. `Turbine_Model_C` y `Turbine_Model_A` tienen importancia de 0.03 cada una. Si sumamos todas las categorías de `Turbine_Model` (0.03 + 0.03 + 0.01 + 0.01 = 0.08), su contribución agregada es comparable a las variables numéricas más relevantes. En cambio, `Installation_Region` tiene menor peso (suma total: 0.02), sugiriendo posiblemente que las variables ambientales numéricas ya capturan la información geográfica relevante.
+
+---
+
+## 4. Combinación paralela de clasificadores de base similar: Boosting (1.5 puntos)
+
+1. Implementa `GradientBoostingClassifier`.
+2. Realiza una búsqueda y ajuste (tuning) de hiperparámetros clave utilizando validación cruzada. Define un rango de búsqueda razonable para cada hiperparámetro y usa la métrica F1 seleccionada.
+3. Reporta los mejores hiperparámetros encontrados y el score de validación cruzada obtenido con ellos.
+   
+### **4.1. Implementación de `GradientBoostingClassifier`**
+
+*Gradient Boosting* es un método *ensemble* secuencial que construye modelos de forma iterativa, donde cada nuevo árbol intenta corregir los errores residuales de los anteriores. A diferencia de *Random Forest*, que reduce la varianza mediante el promedio de modelos independientes, *Gradient Boosting* reduce el sesgo mediante el aprendizaje secuencial enfocado en las instancias más difíciles.
+
+```python
+gb = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('model', GradientBoostingClassifier(
+        random_state=42
+    ))
+])
+```
+
+### **4.2. Búsqueda y ajuste de hiperparámetros con `GridSearchCV`**
+
+Se realiza una búsqueda y ajuste (tuning) de hiperparámetros mediante validación cruzada de 5 particiones (5-CV), utilizando **F1-score macro** como métrica de optimización (la misma empleada para *Random Forest*, permitiendo una comparación justa).
+
+Los hiperparámetros ajustados son:
+
+* `n_estimators`: número de árboles secuenciales (*boosting rounds*).
+* `learning_rate`: tasa de aprendizaje que controla la contribución de cada árbol (valores más bajos requieren más árboles pero mejoran la generalización).
+* `max_depth`: profundidad máxima de cada árbol individual (árboles más profundos capturan interacciones más complejas).
+* `subsample`: fracción de muestras usadas para entrenar cada árbol (introduce aleatoriedad y reduce sobreajuste).
+
+```python
+param_grid_gb = {
+    'model__n_estimators': [100, 200, 300],
+    'model__learning_rate': [0.01, 0.1, 0.2],
+    'model__max_depth': [3, 5, 7],
+    'model__subsample': [0.8, 1.0]
+}
+  
+grid_gb = GridSearchCV(
+    gb,
+    param_grid=param_grid_gb,
+    cv=5,
+    scoring='f1_macro',
+    n_jobs=-1,
+    verbose=1
+)
+  
+grid_gb.fit(X_train, y_train)
+```
+### **4.3. Mejores hiperparámetros y score de validación cruzada**
+
+Los hiperparámetros óptimos muestran que:
+
+* Un `learning_rate` moderado (0.2) proporciona el mejor equilibrio entre velocidad de convergencia y capacidad de generalización.
+* 200 estimadores (`n_estimators`) son necesarios para capturar la complejidad del problema sin sobreajustar.
+* `max_depth`=7 permite capturar interacciones entre variables sin crear árboles excesivamente complejos.
+* `subsample`=0.8 introduce aleatoriedad que mejora la robustez del modelo.
+
+El **F1-score macro** de validación cruzada (0.791) supera al obtenido por Random Forest (0.742), sugiriendo que el enfoque secuencial de *boosting* es más efectivo para este problema, especialmente en la corrección de errores en las clases minoritarias.
+
+```python
+print("Mejores hiperparámetros:", grid_gb.best_params_)
+print("Mejor F1-score macro (validación cruzada):", grid_gb.best_score_)
+```
+
+Mejores hiperparámetros: {'model__learning_rate': 0.2, 'model__max_depth': 7, 'model__n_estimators': 200, 'model__subsample': 0.8} Mejor F1-score macro (validación cruzada): 0.7914461960689454
+
+4. Valida (con el conjunto de datos de validación) el modelo final.
+5. Muestra un gráfico de la importancia de las características de dicho modelo
+6. **Análisis Crítico:** Compara el rendimiento de tu Gradient Boosting optimizado con los modelos anteriores. ¿Logró una mejora sustancial? Analiza tu gráfico de importancia de características: ¿Existen diferencias notables en el ranking o en las variables consideradas más importantes por los modelos boosting en comparación con Random Forest
+   
+### **4.4. Validación del Gradient Boosting final**
+
+Una vez identificados los mejores hiperparámetros mediante validación cruzada, se entrena el modelo *Gradient Boosting* final sobre todo el conjunto de entrenamiento y se evalúa su rendimiento sobre el conjunto de test reservado.
+
+```python
+# Entrenar el modelo final con los mejores hiperparámetros
+best_gb = grid_gb.best_estimator_
+y_pred_gb = best_gb.predict(X_test)
+  
+# Evaluación del modelo final
+evaluate_model("Gradient Boosting (optimizado)", y_test, y_pred_gb)
+```
+
+Gradient Boosting (optimizado) precision recall f1-score support 0 0.839 0.906 0.871 298 1 0.770 0.867 0.816 181 2 0.865 0.529 0.656 121 accuracy 0.818 600 macro avg 0.824 0.767 0.781 600 weighted avg 0.823 0.818 0.811 600
+
+### **4.5. Importancia de las características del modelo final**
+
+```python
+# Extraer importancias del modelo entrenado
+gb_model = best_gb.named_steps['model']
+feature_names = best_gb.named_steps['preprocessor'].get_feature_names_out()
+importances_gb = gb_model.feature_importances_
+
+# Crear DataFrame para visualización
+feature_importance_gb_df = pd.DataFrame({
+    'Feature': feature_names,
+    'Importance': importances_gb
+}).sort_values(by='Importance', ascending=False)
+  
+# Visualización de las 15 características más importantes
+plt.figure(figsize=(12, 8))
+top_features_gb = feature_importance_gb_df.head(15)
+plt.barh(top_features_gb['Feature'], top_features_gb['Importance'], color='darkorange')
+plt.xlabel('Importancia (reducción de pérdida)', fontsize=12)
+plt.ylabel('Característica', fontsize=12)
+plt.title('Top 15 Características más importantes - Gradient Boosting', fontsize=14, pad=20)
+plt.gca().invert_yaxis()
+plt.tight_layout()
+plt.savefig(r'..\Visualizaciones\gb_feature_importance.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+# Mostrar tabla completa ordenada
+print("\n=== Importancia de todas las características ===\n")
+print(feature_importance_gb_df.to_string(index=False))
+```
+
+![[Pasted image 20260104155654.png]]
+
+=== Importancia de todas las características === Feature Importance num__Gearbox_Vibration_Y 0.12 num__Rotor_Wind_Speed 0.07 num__Gen_Output_Voltage 0.07 num__Hydraulic_Oil_Pressure 0.07 num__Rotor_Blade_Angle_1 0.07 num__Grid_Frequency_Hz 0.07 num__Gen_Avg_RPM 0.06 num__Gen_Coil_Temp 0.06 num__Amb_Wind_Turbulence 0.06 num__Rotor_Shaft_Vibration 0.05 num__Hydraulic_Tank_Level 0.04 num__Gearbox_Bearing_Temp 0.04 cat__Turbine_Model_Turbine_Model_C 0.03 num__Amb_Ext_Temp 0.03 num__Gearbox_Vibration_X 0.02 num__System_Efficiency_Calc 0.02 num__Amb_Humidity 0.02 num__Rotor_Blade_Angle_2 0.02 num__Hydraulic_Oil_Temp 0.02 cat__Turbine_Model_Turbine_Model_A 0.02 num__Tower_Fatigue_Index 0.02 num__Tower_Oscillation 0.01 cat__Turbine_Model_Turbine_Model_D 0.00 cat__Installation_Region_South_Plains 0.00 cat__Installation_Region_Interior_Valley 0.00 cat__Turbine_Model_Turbine_Model_B 0.00 cat__Installation_Region_High_Mountains 0.00 cat__Installation_Region_North_Coast 0.00
