@@ -927,3 +927,6 @@ evaluate_model("Naive Bayes", y_test, y_pred_nb)
 ```
 
 Logistic Regression precision recall f1-score support 0 0.781 0.574 0.662 298 1 0.581 0.696 0.633 181 2 0.415 0.562 0.477 121 accuracy 0.608 600 macro avg 0.592 0.611 0.591 600 weighted avg 0.647 0.608 0.616 600 Decision Tree precision recall f1-score support 0 0.740 0.725 0.732 298 1 0.601 0.674 0.635 181 2 0.495 0.430 0.460 121 accuracy 0.650 600 macro avg 0.612 0.610 0.609 600 weighted avg 0.649 0.650 0.648 600 KNN precision recall f1-score support 0 0.763 0.909 0.830 298 1 0.734 0.762 0.748 181 2 0.754 0.355 0.483 121 accuracy 0.753 600 macro avg 0.751 0.676 0.687 600 weighted avg 0.753 0.753 0.735 600 Naive Bayes precision recall f1-score support 0 0.770 0.718 0.743 298 1 0.637 0.641 0.639 181 2 0.464 0.537 0.498 121 accuracy 0.658 600 macro avg 0.624 0.632 0.627 600 weighted avg 0.668 0.658 0.662 600
+
+---
+
