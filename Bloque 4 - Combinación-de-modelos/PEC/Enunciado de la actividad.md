@@ -232,10 +232,26 @@ def detect_outliers(df):
 
 def evaluate_model(name, y_true, y_pred):
     """
-    Evalúa el desempeño de un modelo de clasificación.
+    Evalúa el desempeño de un modelo de clasificación e imprime el reporte.
+    Retorna un diccionario con las métricas clave.
     """
     print(f"\n{name}")
     print(classification_report(y_true, y_pred, digits=3))
+
+    # Extraemos las métricas que nos interesan
+    acc = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred, average="macro")
+
+    # El recall de la clase 2 (Failure) es el más importante para ti
+    recall_c2 = recall_score(y_true, y_pred, labels=[2], average="macro")
+
+    # Devolvemos el diccionario para poder ir "sumando" resultados
+    return {
+        "Modelo": name,
+        "Accuracy": acc,
+        "F1_macro": f1,
+        "Recall_Failure (C2)": recall_c2
+    }
 ```
 
 ## **1. Carga, Análisis Exploratorio Crítico y Limpieza de Datos (1 punto)**
@@ -260,11 +276,14 @@ def evaluate_model(name, y_true, y_pred):
 
 ```python
 # Proporciona funciones para interactuar con el sistema operativo (como rutas de archivos)
-import os   
+
+import os  
+
+  
 
 # Permite modificar aspectos del entorno de ejecución de Python, como la lista de rutas de búsqueda de módulos (sys.path)
 import sys
-
+  
 # Sube un nivel desde /PEC/
 root_dir = os.path.abspath('..')  
 sys.path.append(root_dir)
@@ -273,11 +292,19 @@ sys.path.append(root_dir)
 import pandas as pd
 pd.set_option('display.float_format', '{:.2f}'.format)
 pd.set_option('display.max_columns', None)
-
+  
 import numpy as np
+import math
 import seaborn as sns
-import matplotlib.pyplot as plt
 
+# Configuración estética general
+sns.set_theme(style="whitegrid", context="talk")
+
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+  
 # Librerías necesarias para el preprocesamiento de datos
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
@@ -290,11 +317,14 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier
-
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import StackingClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
+  
 # Librerías necesarias para la evaluación de modelos y tunning
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay, accuracy_score, f1_score, recall_score, precision_score
 from sklearn.model_selection import GridSearchCV
-
+  
 # Librerías necesarias para el entrenamiento y evaluación de modelos
 from sklearn.model_selection import train_test_split
 ```
@@ -377,14 +407,14 @@ El dataframe tiene 24 columnas y 3000 filas.
 |22|System_Efficiency_Calc|float64|3000|0.00|3000|-0.02|-0.01|1.40|-5.43|-0.77|0.69|6.77|
 |23|Operational_Status|int64|3000|0.00|3|0.70|1.00|0.78|0.00|0.00|1.00|2.00|
 
-#### **1.2.2. Distribución de las variables categóricas y objetivo**
- 
+#### **1.2.2. Análisis de las variables categóricas y objetivo**
+
 **Variables categóricas:**
 
 * `Installation_Region` está **perfectamente balanceada** entre sus cuatro categorías (25% cada una), lo que evita sesgos geográficos en el entrenamiento.
 * `Turbine_Model` presenta una distribución razonablemente equilibrada, aunque el modelo D está algo menos representado (17.7%).
 
-Esto es positivo para la generalización de los modelos y permite analizar si ciertos modelos o regiones presentan mayor propensión a fallos.
+> Esto es positivo para la generalización de los modelos y permite analizar si ciertos modelos o regiones presentan mayor propensión a fallos.
 
 **Variable objetivo (`Operational_Status`):**
 
@@ -398,8 +428,8 @@ Aunque no es un desbalance extremo, **sí existe una asimetría clara**, especia
 
 Esto anticipa que:
 
-* Métricas como *accuracy* pueden ser engañosas. **¿Por que?**
-* Será necesario prestar atención al *recall* de la clase 2 en fases posteriores. **¿Por que?**
+* Métricas como *accuracy* pueden ser engañosas, **ya que un modelo podría obtener valores altos simplemente prediciendo correctamente la clase mayoritaria, sin detectar adecuadamente los estados de fallo.**
+* Será necesario prestar atención al *recall* de la clase 2 en fases posteriores, **porque el coste de no identificar un fallo real es mucho mayor que el de una falsa alarma en un entorno industrial.**
 
 ```python
 cols_to_analyze = ['Installation_Region', 'Turbine_Model', 'Operational_Status']
@@ -423,26 +453,78 @@ df_frecuencias
 |9|Operational_Status|1|907|30.23|
 |10|Operational_Status|2|603|20.10|
 
-#### **1.2.3. Correlaciones entre sensores**
+##### **A. Distribución del estado operativo según variables categóricas**
+
+Este gráfico muestra cómo varía el **estado operativo** (*Normal*, *Warning*, *Failure*) según la **región** y el **modelo de turbina**. Se observa que algunas regiones y, sobre todo, ciertos modelos concentran una mayor proporción de estados *Warning* y *Failure*, lo que sugiere que tanto el contexto geográfico como el diseño del modelo influyen en el riesgo operativo. 
+
+##### **B. Distribución de tipos de turbina por región**
+
+Aquí se aprecia la distribución absoluta de los **modelos de turbina en cada región**. La presencia de todos los modelos en todas las regiones, con diferencias moderadas en frecuencia, indica que no existe un sesgo extremo de despliegue. Esto es positivo, ya que permite al modelo aprender patrones reales entre región, tipo de turbina y estado operativo sin que una combinación específica domine el conjunto de datos.
+
+#### **1.2.3. Análisis de las variables numéricas según la objetivo**
+
+
+El gráfico muestra que **la mayoría de las variables numéricas presentan distribuciones aproximadamente normales**, coherente con que los datos estén estandarizados como z-scores. Existe un **alto solapamiento entre los tres estados operativos** (*Normal*, *Warning* y *Failure*), lo que indica que ninguna variable por sí sola separa claramente las clases.
+
+Aun así, se aprecian **desplazamientos sistemáticos de las distribuciones** que aportan información relevante:
+
+* En **estado *Failure***, algunas variables del generador y la red como `Gen_Avg_RPM` y `Grid_Frequency_Hz` tienden a desplazarse hacia valores más bajos, lo que sugiere pérdida de eficiencia o problemas de sincronización en situaciones críticas.
+
+* El **estado *Warning*** muestra comportamientos intermedios, pero con desplazamientos específicos en variables clave:
+    * Valores algo más bajos en `Rotor_Blade_Angle_1`, `Gearbox_Bearing_Temp` y `Gearbox_Vibration_Y`.
+    * Valores más altos en `Rotor_Wind_Speed` y `Rotor_Shaft_Vibration`, lo que puede indicar estrés mecánico creciente antes del fallo.
+
+* Variables ambientales y algunas hidráulicas presentan distribuciones muy similares entre clases, por lo que, de forma aislada, parecen menos discriminantes.
+
+En conjunto, el gráfico refuerza la idea de que el estado *Warning* no es un fallo abrupto, sino una fase de transición con desviaciones sutiles pero consistentes en sensores mecánicos y dinámicos. Esto justifica el uso de modelos multivariantes, capaces de combinar pequeñas señales de distintos subsistemas, y respalda el enfoque de mantenimiento predictivo proactivo, anticipándose al fallo antes de que la turbina entre en un estado crítico.
+
+#### **1.2.4. Correlaciones entre sensores**
 
 El análisis de correlación revela varios patrones importantes:
 
 * Existe una **correlación perfecta (ρ = 1.00)** entre:
 
-  * `Rotor_Shaft_Vibration` y `Rotor_Shaft_Vibration_Redundant`.
+  * `Rotor_Shaft_Vibration` y `Rotor_Shaft_Vibration_Redundant`.
 
 Esto confirma que una de estas variables es completamente redundante y puede eliminarse sin pérdida de información.
 
 * Se observan **correlaciones moderadas** entre:
-  * Temperatura externa (`Amb_Ext_Temp`) y frecuencia de red (`Grid_Frequency_Hz`).
-  * Temperatura del generador (`Gen_Coil_Temp`) y temperatura de rodamientos del gearbox.
-  * RPM del generador y temperatura ambiente.
+
+  * Temperatura externa (`Amb_Ext_Temp`) y frecuencia de red (`Grid_Frequency_Hz`).
+  * Temperatura del generador (`Gen_Coil_Temp`) y temperatura de rodamientos del gearbox (`Gearbox_Bearing_Temp`).
+  * RPM del generador (`Gen_RPM`) y temperatura ambiente (`Amb_Ext_Temp`).
 
 Estas relaciones reflejan **interdependencias físicas reales** entre subsistemas mecánicos, eléctricos y ambientales.
 
-* El resto de correlaciones son débiles, lo que indica que:
-  * La mayoría de sensores aportan **información complementaria**.
-  * No existe multicolinealidad severa generalizada.
+* El resto de correlaciones son **débiles**, lo que indica que:
+
+  * La mayoría de sensores aportan **información complementaria**.
+  * **No existe multicolinealidad** severa generalizada.
+
+Este patrón favorece el uso de **modelos no lineales y ensembles**, capaces de explotar interacciones complejas.
+
+#### **1.2.4. Correlaciones entre sensores**
+
+El análisis de correlación revela varios patrones importantes:
+
+* Existe una **correlación perfecta (ρ = 1.00)** entre:
+
+  * `Rotor_Shaft_Vibration` y `Rotor_Shaft_Vibration_Redundant`.
+
+Esto confirma que una de estas variables es completamente redundante y puede eliminarse sin pérdida de información.
+
+* Se observan **correlaciones moderadas** entre:
+
+  * Temperatura externa (`Amb_Ext_Temp`) y frecuencia de red (`Grid_Frequency_Hz`).
+  * Temperatura del generador (`Gen_Coil_Temp`) y temperatura de rodamientos del gearbox (`Gearbox_Bearing_Temp`).
+  * RPM del generador (`Gen_RPM`) y temperatura ambiente (`Amb_Ext_Temp`).
+
+Estas relaciones reflejan **interdependencias físicas reales** entre subsistemas mecánicos, eléctricos y ambientales.
+
+* El resto de correlaciones son **débiles**, lo que indica que:
+
+  * La mayoría de sensores aportan **información complementaria**.
+  * **No existe multicolinealidad** severa generalizada.
 
 Este patrón favorece el uso de **modelos no lineales y ensembles**, capaces de explotar interacciones complejas.
 
@@ -968,13 +1050,38 @@ y_pred_nb = nb.predict(X_test_nb)
 En este problema, la **métrica más relevante es el *recall* por clase, especialmente para la clase *Failure***. Desde el punto de vista del mantenimiento predictivo, **no detectar un fallo crítico es mucho más costoso que una falsa alarma**, por lo que métricas agregadas como la accuracy pueden resultar engañosas.
 
 ```python
-evaluate_model("Logistic Regression", y_test, y_pred_log)
-evaluate_model("Decision Tree", y_test, y_pred_dt)
-evaluate_model("KNN", y_test, y_pred_knn)
-evaluate_model("Naive Bayes", y_test, y_pred_nb)
+# Inicializamos la lista vacía
+all_results = []
+
+# Evaluamos cada modelo y añadimos el diccionario a la lista
+all_results.append(evaluate_model("Logistic Regression", y_test, y_pred_log))
+all_results.append(evaluate_model("Decision Tree", y_test, y_pred_dt))
+all_results.append(evaluate_model("KNN", y_test, y_pred_knn))
+all_results.append(evaluate_model("Naive Bayes", y_test, y_pred_nb))
 ```
 
 Logistic Regression precision recall f1-score support 0 0.781 0.574 0.662 298 1 0.581 0.696 0.633 181 2 0.415 0.562 0.477 121 accuracy 0.608 600 macro avg 0.592 0.611 0.591 600 weighted avg 0.647 0.608 0.616 600 Decision Tree precision recall f1-score support 0 0.740 0.725 0.732 298 1 0.601 0.674 0.635 181 2 0.495 0.430 0.460 121 accuracy 0.650 600 macro avg 0.612 0.610 0.609 600 weighted avg 0.649 0.650 0.648 600 KNN precision recall f1-score support 0 0.763 0.909 0.830 298 1 0.734 0.762 0.748 181 2 0.754 0.355 0.483 121 accuracy 0.753 600 macro avg 0.751 0.676 0.687 600 weighted avg 0.753 0.753 0.735 600 Naive Bayes precision recall f1-score support 0 0.770 0.718 0.743 298 1 0.637 0.641 0.639 181 2 0.464 0.537 0.498 121 accuracy 0.658 600 macro avg 0.624 0.632 0.627 600 weighted avg 0.668 0.658 0.662 600
+
+
+```python
+# Convertimos la lista de diccionarios en DataFrame
+results_df = pd.DataFrame(all_results)
+  
+# Ordenamos por la métrica más importante (Recall clase 2)
+results_df = results_df.sort_values(by="Recall_Failure (C2)", ascending=False)
+  
+results_df
+```
+
+|     | Modelo              | Accuracy | F1_macro | Recall_Failure (C2) |
+| --- | ------------------- | -------- | -------- | ------------------- |
+| 0   | Logistic Regression | 0.61     | 0.59     | 0.56                |
+| 3   | Naive Bayes         | 0.66     | 0.63     | 0.54                |
+| 1   | Decision Tree       | 0.65     | 0.61     | 0.43                |
+| 2   | KNN                 | 0.75     | 0.69     | 0.36                |
+
+![[Pasted image 20260107150549.png]]
+
 
 ---
 
@@ -1051,7 +1158,7 @@ print("Mejores hiperparámetros:", best_params)
 print("Mejor F1-score (validación cruzada):", best_score)
 ```
 
-Mejores hiperparámetros: {'model__max_depth': 10, 'model__max_features': 'sqrt', 'model__n_estimators': 300} Mejor puntuación: 0.7417070231475612
+Mejores hiperparámetros: {'model__max_depth': 20, 'model__max_features': None, 'model__n_estimators': 300} Mejor F1-score (validación cruzada): 0.7510624797930968
 
 **Interpretación típica** (los valores concretos dependen de tu ejecución, pero en general):
 
@@ -1076,12 +1183,28 @@ Una vez identificados los mejores hiperparámetros mediante validación cruzada,
 # Entrenar el modelo final con los mejores hiperparámetros
 best_rf = grid_rf.best_estimator_
 y_pred_rf = best_rf.predict(X_test)
-
+  
 # Evaluación del modelo final
-evaluate_model("Random Forest (optimizado)", y_test, y_pred_rf)
+all_results.append(evaluate_model("Random Forest (optimizado)", y_test, y_pred_rf))
+  
+# Convertimos la lista de diccionarios en DataFrame
+results_df = pd.DataFrame(all_results)
+  
+# Ordenamos por la métrica más importante (Recall clase 2)
+results_df = results_df.sort_values(by="Recall_Failure (C2)", ascending=False)
+  
+results_df
 ```
 
 Random Forest (optimizado) precision recall f1-score support 0 0.814 0.866 0.839 298 1 0.758 0.796 0.776 181 2 0.710 0.545 0.617 121 accuracy 0.780 600 macro avg 0.760 0.736 0.744 600 weighted avg 0.776 0.780 0.775 600
+
+|     | Modelo                     | Accuracy | F1_macro | Recall_Failure (C2) |
+| --- | -------------------------- | -------- | -------- | ------------------- |
+| 0   | Logistic Regression        | 0.61     | 0.59     | 0.56                |
+| 3   | Naive Bayes                | 0.66     | 0.63     | 0.54                |
+| 4   | Random Forest (optimizado) | 0.79     | 0.75     | 0.48                |
+| 1   | Decision Tree              | 0.65     | 0.61     | 0.43                |
+| 2   | KNN                        | 0.75     | 0.69     | 0.36                |
 
 El modelo *Random Forest* optimizado muestra un rendimiento claramente superior a todos los modelos base:
 
@@ -1090,6 +1213,8 @@ El modelo *Random Forest* optimizado muestra un rendimiento claramente superior 
 * `Recall` en clase *Failure* (2): 0.55 (mejora sustancial respecto a los 0.36 de KNN)
 
 > Este resultado confirma que el enfoque ensemble y la optimización de hiperparámetros han permitido mejorar significativamente la detección de fallos críticos.
+
+![[Pasted image 20260107150753.png]]
 
 ### **3.5. Importancia de las características (feature_importance_) del modelo final**
 
@@ -1124,7 +1249,7 @@ print("\n=== Importancia de todas las características ===\n")
 print(feature_importance_df.to_string(index=False))
 ```
 
-![[Pasted image 20260104150532.png]]
+![[Pasted image 20260107150805.png]]
 
 === Importancia de todas las características === Feature Importance num__Rotor_Blade_Angle_1 0.09 num__Gearbox_Vibration_Y 0.09 num__Grid_Frequency_Hz 0.07 num__Hydraulic_Oil_Pressure 0.06 num__Gen_Output_Voltage 0.06 num__Gearbox_Bearing_Temp 0.06 num__Rotor_Wind_Speed 0.05 num__Gen_Avg_RPM 0.05 num__Rotor_Shaft_Vibration 0.05 num__Gen_Coil_Temp 0.05 num__Amb_Wind_Turbulence 0.05 num__Hydraulic_Tank_Level 0.04 num__Amb_Ext_Temp 0.04 cat__Turbine_Model_Turbine_Model_C 0.03 cat__Turbine_Model_Turbine_Model_A 0.03 num__System_Efficiency_Calc 0.03 num__Hydraulic_Oil_Temp 0.02 num__Gearbox_Vibration_X 0.02 num__Rotor_Blade_Angle_2 0.02 num__Amb_Humidity 0.02 num__Tower_Oscillation 0.02 num__Tower_Fatigue_Index 0.02 cat__Installation_Region_South_Plains 0.01 cat__Turbine_Model_Turbine_Model_B 0.01 cat__Turbine_Model_Turbine_Model_D 0.01 cat__Installation_Region_North_Coast 0.01 cat__Installation_Region_High_Mountains 0.00 cat__Installation_Region_Interior_Valley 0.00
 
@@ -1242,12 +1367,34 @@ best_gb = grid_gb.best_estimator_
 y_pred_gb = best_gb.predict(X_test)
   
 # Evaluación del modelo final
-evaluate_model("Gradient Boosting (optimizado)", y_test, y_pred_gb)
+all_results.append(evaluate_model("Gradient Boosting (optimizado)", y_test, y_pred_gb))
+  
+# Convertimos la lista de diccionarios en DataFrame
+results_df = pd.DataFrame(all_results)
+  
+# Ordenamos por la métrica más importante (Recall clase 2)
+results_df = results_df.sort_values(by="Recall_Failure (C2)", ascending=False)  
+
+results_df
 ```
 
 Gradient Boosting (optimizado) precision recall f1-score support 0 0.839 0.906 0.871 298 1 0.770 0.867 0.816 181 2 0.865 0.529 0.656 121 accuracy 0.818 600 macro avg 0.824 0.767 0.781 600 weighted avg 0.823 0.818 0.811 600
 
+|     | Modelo                         | Accuracy | F1_macro | Recall_Failure (C2) |
+| --- | ------------------------------ | -------- | -------- | ------------------- |
+| 0   | Logistic Regression            | 0.61     | 0.59     | 0.56                |
+| 3   | Naive Bayes                    | 0.66     | 0.63     | 0.54                |
+| 5   | Gradient Boosting (optimizado) | 0.82     | 0.78     | 0.53                |
+| 4   | Random Forest (optimizado)     | 0.79     | 0.75     | 0.48                |
+| 1   | Decision Tree                  | 0.65     | 0.61     | 0.43                |
+| 2   | KNN                            | 0.75     | 0.69     | 0.36                |
+
+El modelo *Gradient Boosting* optimizado alcanza una `accuracy` de 0.818 y un **F1-score macro** de 0.781, superando a *Random Forest* (0.780 y 0.744 respectivamente). Destaca la precision excepcional de 0.865 en la clase *Failure*, aunque el *recall* (0.529) se mantiene similar al de *Random Forest* (0.545).
+
+![[Pasted image 20260107150917.png]]
 ### **4.5. Importancia de las características del modelo final**
+
+El gráfico muestra que `Gearbox_Vibration_Y` domina claramente con una importancia de 0.12, seguida de un grupo de variables con importancia de 0.07 cada una: `Rotor_Wind_Speed`, `Gen_Output_Voltage`, `Hydraulic_Oil_Pressure`, `Rotor_Blade_Angle_1` y `Grid_Frequency_Hz`.
 
 ```python
 # Extraer importancias del modelo entrenado
@@ -1278,6 +1425,410 @@ print("\n=== Importancia de todas las características ===\n")
 print(feature_importance_gb_df.to_string(index=False))
 ```
 
-![[Pasted image 20260104155654.png]]
+![[Pasted image 20260107150926.png]]
 
 === Importancia de todas las características === Feature Importance num__Gearbox_Vibration_Y 0.12 num__Rotor_Wind_Speed 0.07 num__Gen_Output_Voltage 0.07 num__Hydraulic_Oil_Pressure 0.07 num__Rotor_Blade_Angle_1 0.07 num__Grid_Frequency_Hz 0.07 num__Gen_Avg_RPM 0.06 num__Gen_Coil_Temp 0.06 num__Amb_Wind_Turbulence 0.06 num__Rotor_Shaft_Vibration 0.05 num__Hydraulic_Tank_Level 0.04 num__Gearbox_Bearing_Temp 0.04 cat__Turbine_Model_Turbine_Model_C 0.03 num__Amb_Ext_Temp 0.03 num__Gearbox_Vibration_X 0.02 num__System_Efficiency_Calc 0.02 num__Amb_Humidity 0.02 num__Rotor_Blade_Angle_2 0.02 num__Hydraulic_Oil_Temp 0.02 cat__Turbine_Model_Turbine_Model_A 0.02 num__Tower_Fatigue_Index 0.02 num__Tower_Oscillation 0.01 cat__Turbine_Model_Turbine_Model_D 0.00 cat__Installation_Region_South_Plains 0.00 cat__Installation_Region_Interior_Valley 0.00 cat__Turbine_Model_Turbine_Model_B 0.00 cat__Installation_Region_High_Mountains 0.00 cat__Installation_Region_North_Coast 0.00
+
+### **4.6. Análisis Crítico: Comparación con modelos anteriores**
+
+#### **4.6.1. ¿Logró Gradient Boosting una mejora sustancial?**
+
+Sí. Gradient Boosting supera a todos los modelos previos:
+
+- **+3.8% en accuracy** respecto a *Random Forest* (0.818 vs 0.780).
+- **+3.7% en F1-macro** respecto a *Random Forest* (0.781 vs 0.744).
+- **Precision en Failure**: 0.865 (vs 0.710 de RF), mejorando +21.8% y reduciendo drásticamente los falsos positivos.
+
+Sin embargo, el **recall de Failure (0.529)** es ligeramente inferior al de *Random Forest* (0.545), lo que indica que *Gradient Boosting* es más conservador al clasificar fallos críticos. A pesar de esto, el **F1-score de Failure alcanza 0.656** (vs 0.617 de RF), mostrando un mejor equilibrio global.
+
+La mejora más notable está en la **clase Warning**: recall de 0.867 (vs 0.796 de RF) y F1-score de 0.816 (vs 0.776 de RF), confirmando que *boosting* es especialmente efectivo en clases intermedias donde los errores son más sutiles.
+
+#### **4.6.2. Diferencias en la importancia de características:**
+
+Comparando los rankings:
+
+**Random Forest Top 5:**
+1. Rotor_Blade_Angle_1 (0.09)
+2. Gearbox_Vibration_Y (0.09)
+3. Grid_Frequency_Hz (0.07)
+4. Hydraulic_Oil_Pressure (0.06)
+5. Gen_Output_Voltage (0.06)
+
+**Gradient Boosting Top 5:**
+1. Gearbox_Vibration_Y (0.12)
+2. Rotor_Wind_Speed (0.07)
+3. Gen_Output_Voltage (0.07)
+4. Hydraulic_Oil_Pressure (0.07)
+5. Rotor_Blade_Angle_1 (0.07)
+
+#### **4.6.3. ¿Existen diferencias notables?**
+
+Sí, diferencias significativas:
+
+1. **Concentración de importancia**: *Gradient Boosting* asigna mucha más importancia a `Gearbox_Vibration_Y` (0.12 vs 0.09 de RF), identificándola como la variable claramente dominante. Esto refleja que el enfoque secuencial detecta que los errores residuales están fuertemente correlacionados con vibraciones anómalas en la caja de cambios.
+
+2. **Cambio en el ranking**: `Rotor_Blade_Angle_1` pasa de ser la variable más importante en RF (0.09) a la quinta posición en GB (0.07). En su lugar, `Rotor_Wind_Speed` emerge como segunda más relevante (0.07), ausente del top 5 de RF.
+
+3. **Mayor foco en variables mecánicas y operativas**: GB prioriza `Rotor_Wind_Speed` y `Gearbox_Vibration_Y`, mientras que RF daba más peso a variables de control como `Rotor_Blade_Angle_1` y `Grid_Frequency_Hz`.
+
+4. **Convergencia en variables críticas**: Ambos modelos coinciden en que `Gen_Output_Voltage`, `Hydraulic_Oil_Pressure`, `Grid_Frequency_Hz` y `Rotor_Blade_Angle_1` son relevantes, aunque con diferente peso relativo.
+
+5. **Variables categóricas**: `Turbine_Model_C` mantiene importancia moderada (0.03 en GB vs 0.03 en RF), pero el resto de variables categóricas tienen peso casi nulo en ambos modelos, confirmando que los sensores físicos capturan la mayor parte de la información predictiva.
+
+La diferencia más relevante es que **Gradient Boosting identifica de forma más agresiva las variables que corrigen errores específicos** (especialmente vibraciones), mientras que *Random Forest* distribuye la importancia de forma más uniforme entre múltiples variables.
+
+---
+
+## 5. Combinación secuencial de clasificadores de base diferente: Stacking (1.5 punto)
+
+1. Implementa `StackingClassifier`.
+2. Utiliza los modelos base implementados en la sección 2 ¿Crees que esta combinación de modelos es diversa y adecuada para Stacking?
+3. Elige un meta-clasificador. Puedes optar por usar los hiperparámetros por defecto o realizar un pequeño ajuste si lo consideras necesario.
+4. Valida el `StackingClassifier` completo usando los datos de validación con la métrica F1 seleccionada. Reporta el score.
+5. **Análisis Crítico:** Compara el rendimiento de tu Stacking model con el mejor resultado que obtuviste de un ensemble individual (RF o Boosting) en los pasos anteriores. ¿Aportó Stacking una mejora significativa del rendimiento en este dataset? Explica brevemente cómo crees que el meta-clasificador está utilizando las predicciones de tus base learners elegidos.
+
+### **5.1. Implementación de StackingClassifier**
+
+*Stacking* es un método ensemble que combina múltiples modelos base (nivel 0) mediante un meta-clasificador (nivel 1) que aprende a combinar sus predicciones de forma óptima. A diferencia de *bagging* y *boosting*, que usan modelos homogéneos, *stacking* puede combinar modelos con diferentes sesgos inductivos.
+
+```python
+# Definir los modelos base (sin pipeline, ya preprocesados)
+X_train_processed = preprocessor.fit_transform(X_train)
+X_test_processed = preprocessor.transform(X_test)
+  
+base_learners = [
+    ('lr', LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42)),
+    ('dt', DecisionTreeClassifier(class_weight='balanced', random_state=42)),
+    ('knn', KNeighborsClassifier(n_neighbors=5)),
+    ('nb', GaussianNB())
+]
+  
+# Meta-clasificador
+meta_classifier = LogisticRegression(max_iter=1000, random_state=42)
+  
+# StackingClassifier
+stacking = StackingClassifier(
+    estimators=base_learners,
+    final_estimator=meta_classifier,
+    cv=5,
+    n_jobs=-1
+)
+```
+
+### **5.2. ¿Es esta combinación de modelos diversa y adecuada para Stacking?**
+
+**Sí, la combinación es diversa y adecuada**. Los cuatro modelos base representan familias algorítmicas diferentes:
+
+* ***Logistic Regression***: modelo lineal paramétrico que asume relaciones lineales entre variables.
+* ***Decision Tree***: modelo no lineal basado en reglas, capaz de capturar interacciones pero propenso a sobreajuste.
+* ***KNN***: método basado en instancias que asume que observaciones similares pertenecen a la misma clase.
+* ***Naive Bayes***: clasificador probabilístico que asume independencia condicional entre variables.
+
+Esta diversidad es crucial para stacking porque:
+
+* **Diferentes sesgos inductivos**: cada modelo comete errores en diferentes tipos de instancias.
+* **Complementariedad**: donde un modelo falla, otro puede acertar, permitiendo que el meta-clasificador aprenda qué modelo es más confiable en cada región del espacio de características.
+* **Variedad de capacidades**: desde modelos lineales simples hasta métodos no paramétricos complejos.
+
+```python
+# Entrenar el modelo stacking
+stacking.fit(X_train_processed, y_train)
+  
+# Predicciones
+y_pred_stacking = stacking.predict(X_test_processed)
+```
+
+### **5.4. Validación del StackingClassifier**
+
+Una vez entrenado el modelo de *Stacking* utilizando validación cruzada interna para generar las predicciones de los modelos base, se evalúa su rendimiento sobre el conjunto de test reservado. La evaluación se realiza utilizando las mismas métricas empleadas en los modelos anteriores, con especial atención al **F1-score macro** y al comportamiento en la clase *Failure*.
+
+Los resultados obtenidos muestran que el *StackingClassifier* alcanza una `accuracy` de 0.807 y un **F1-score macro de 0.775**, situándose por encima de todos los modelos base individuales, pero ligeramente por debajo del mejor modelo *ensemble* individual (*Gradient Boosting*). En términos de clases, el modelo presenta un comportamiento equilibrado en *Normal* y *Warning*, con valores de *recall* elevados (0.876 y 0.818 respectivamente), mientras que en la clase *Failure* obtiene un *recall* de 0.620, superior al de *Gradient Boosting* (0.529) y *Random Forest* (0.545).
+
+Este resultado indica que el *StackingClassifier* es especialmente eficaz reduciendo falsos negativos en la clase *Failure*, aunque lo hace a costa de una menor precisión (0.701), reflejando un enfoque más conservador y orientado a la detección temprana de fallos críticos.
+
+```python
+# Evaluación del modelo final
+all_results.append(evaluate_model("Stacking Classifier", y_test, y_pred_stacking))
+
+# Convertimos la lista de diccionarios en DataFrame
+results_df = pd.DataFrame(all_results)
+  
+# Ordenamos por la métrica más importante (Recall clase 2)
+results_df = results_df.sort_values(by="Recall_Failure (C2)", ascending=False)
+  
+results_df
+```
+
+Stacking Classifier precision recall f1-score support 0 0.859 0.876 0.867 298 1 0.783 0.818 0.800 181 2 0.701 0.620 0.658 121 accuracy 0.807 600 macro avg 0.781 0.771 0.775 600 weighted avg 0.804 0.807 0.805 600 F1-score macro: 0.775
+
+|     | Modelo                         | Accuracy | F1_macro | Recall_Failure (C2) |
+| --- | ------------------------------ | -------- | -------- | ------------------- |
+| 6   | Stacking Classifier            | 0.81     | 0.78     | 0.62                |
+| 7   | Stacking Classifier            | 0.81     | 0.78     | 0.62                |
+| 0   | Logistic Regression            | 0.61     | 0.59     | 0.56                |
+| 3   | Naive Bayes                    | 0.66     | 0.63     | 0.54                |
+| 5   | Gradient Boosting (optimizado) | 0.82     | 0.78     | 0.53                |
+| 4   | Random Forest (optimizado)     | 0.79     | 0.75     | 0.48                |
+| 1   | Decision Tree                  | 0.65     | 0.61     | 0.43                |
+| 2   | KNN                            | 0.75     | 0.69     | 0.36                |
+
+![[Pasted image 20260107151039.png]]
+### **5.5. Análisis Crítico: Comparación con ensembles individuales**
+
+#### **5.5.1. ¿Aportó Stacking una mejora significativa?**
+
+El *StackingClassifier* **no supera a Gradient Boosting en métricas globales** como *accuracy* o *F1-score macro*, por lo que no puede considerarse el mejor modelo desde una perspectiva puramente agregada. Sin embargo, sí aporta una **mejora clara y relevante en el *recall* de la clase *Failure***, alcanzando el valor más alto de todos los modelos evaluados (0.620).
+
+Esto es especialmente importante en un contexto de mantenimiento predictivo, donde **no detectar un fallo crítico tiene un coste mucho mayor que generar una falsa alarma**. Desde este punto de vista, *Stacking* presenta una ventaja operativa clara frente a *Random Forest* y *Gradient Boosting*.
+
+#### **5.5.2. Interpretación del comportamiento del meta-clasificador**
+
+El meta-clasificador (regresión logística) aprende a **ponderar dinámicamente las predicciones de los modelos base** en función del contexto. En particular:
+
+* Aprovecha la alta *precision* de modelos como KNN en la clase *Normal*.
+* Compensa la baja sensibilidad de KNN y árboles individuales en *Failure* mediante las predicciones probabilísticas de Naïve Bayes y Logistic Regression.
+* Identifica patrones de desacuerdo entre modelos base como señales de riesgo, clasificando más observaciones como *Failure* cuando existe incertidumbre.
+
+Este comportamiento explica el aumento del *recall* en *Failure*, aunque también introduce más falsos positivos, reduciendo la precisión.
+
+#### **5.5.3. Conclusión final**
+
+En conjunto, *Stacking* **no sustituye al mejor ensemble individual**, pero sí lo complementa. Mientras *Gradient Boosting* ofrece el mejor equilibrio global entre precisión y generalización, *Stacking* es el modelo más adecuado cuando el objetivo prioritario es **maximizar la detección de fallos críticos**, incluso a costa de generar más alertas.
+
+Esta diferencia sugiere que la elección final del modelo debería depender del **coste operativo relativo entre falsos negativos y falsos positivos**, siendo *Stacking* la opción preferible en escenarios altamente críticos y *Gradient Boosting* en contextos donde se busca un equilibrio más conservador.
+
+---
+
+# 6. Combinación secuencial de clasificadores de base diferente: Cascading (1.5 puntos)
+
+## **6.1. Implementación de Cascading con `passthrough=True`**
+
+El enfoque de **cascading** (clasificación en cascada) consiste en combinar modelos de forma secuencial, donde las predicciones de los modelos base se utilizan como características adicionales para el meta-clasificador, junto con las características originales del dataset. En `scikit-learn`, esto se implementa mediante `StackingClassifier` con el parámetro `passthrough=True`.
+
+A diferencia del _stacking_ tradicional (apartado 5), donde el meta-clasificador solo recibe las predicciones de los modelos base, en **cascading** el meta-clasificador dispone de:
+
+- Las predicciones de los 4 modelos base (probabilidades de cada clase)
+- Las características originales del dataset
+
+Esta arquitectura permite al meta-clasificador aprender patrones más complejos, combinando tanto la información directa de los sensores como las "opiniones" agregadas de los modelos base.
+
+```python
+# Cascading: Stacking con passthrough=True
+base_learners_cascade = [
+    ('lr', LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42)),
+    ('dt', DecisionTreeClassifier(class_weight='balanced', random_state=42)),
+    ('knn', KNeighborsClassifier(n_neighbors=5)),
+    ('nb', GaussianNB())
+]
+
+# Meta-clasificador
+meta_classifier_cascade = LogisticRegression(max_iter=1000, random_state=42)
+
+# StackingClassifier con passthrough=True (Cascading)
+cascading = StackingClassifier(
+    estimators=base_learners_cascade,
+    final_estimator=meta_classifier_cascade,
+    passthrough=True,  # Clave para cascading
+    cv=5,
+    n_jobs=-1
+)
+```
+
+### **¿Es esta combinación adecuada para Cascading?**
+
+**Sí, con matices**. La combinación de modelos base es la misma que en _stacking_ (Logistic Regression, Decision Tree, KNN, Naive Bayes), lo cual garantiza **diversidad de sesgos inductivos**. Sin embargo, para cascading específicamente:
+
+**Ventajas de esta configuración:**
+
+- Los modelos base son computacionalmente eficientes y rápidos de entrenar, lo cual es importante ya que cascading añade complejidad al pasar también las características originales.
+- La diversidad de familias algorítmicas permite que el meta-clasificador aprenda patrones complementarios tanto de las predicciones como de las variables originales.
+
+**Posibles limitaciones:**
+
+- Los modelos base tienen rendimientos muy dispares (KNN: 0.753 vs Decision Tree: 0.650), lo que puede hacer que el meta-clasificador dependa excesivamente del mejor modelo base.
+- Con `passthrough=True`, el meta-clasificador recibe un espacio de características expandido (características originales + predicciones de 4 modelos), lo que podría requerir un meta-clasificador más complejo que una simple regresión logística.
+
+---
+
+## **6.2. Elección del meta-clasificador**
+
+Se mantiene **Logistic Regression** como meta-clasificador por las siguientes razones:
+
+- **Robustez**: puede manejar espacios de características de alta dimensión sin sobreajustar, especialmente con regularización L2 (por defecto).
+- **Interpretabilidad**: permite entender qué variables originales y qué predicciones de modelos base son más relevantes.
+- **Consistencia**: facilita la comparación directa con stacking tradicional.
+
+Se mantienen los hiperparámetros por defecto, aunque en un escenario de producción podría explorarse el ajuste del parámetro de regularización `C`.
+
+```python
+# Entrenar el modelo cascading
+cascading.fit(X_train_processed, y_train)
+
+# Predicciones
+y_pred_cascading = cascading.predict(X_test_processed)
+```
+
+---
+
+## **6.3. Validación del clasificador en cascada**
+
+```python
+# Evaluación del modelo final
+all_results.append(evaluate_model("Cascading Classifier", y_test, y_pred_cascading))
+  
+# Convertimos la lista de diccionarios en DataFrame
+results_df = pd.DataFrame(all_results)
+  
+# Ordenamos por la métrica más importante (Recall clase 2)
+results_df = results_df.sort_values(by="Recall_Failure (C2)", ascending=False)
+
+results_df
+```
+
+
+Cascading Classifier precision recall f1-score support 0 0.856 0.879 0.868 298 1 0.793 0.823 0.808 181 2 0.708 0.620 0.661 121 accuracy 0.810 600 macro avg 0.785 0.774 0.779 600 weighted avg 0.807 0.810 0.808 600 F1-score macro: 0.779
+
+|     | Modelo                         | Accuracy | F1_macro | Recall_Failure (C2) |
+| --- | ------------------------------ | -------- | -------- | ------------------- |
+| 6   | Stacking Classifier            | 0.81     | 0.78     | 0.62                |
+| 7   | Cascading Classifier           | 0.81     | 0.78     | 0.62                |
+| 0   | Logistic Regression            | 0.61     | 0.59     | 0.56                |
+| 3   | Naive Bayes                    | 0.66     | 0.63     | 0.54                |
+| 5   | Gradient Boosting (optimizado) | 0.82     | 0.78     | 0.53                |
+| 4   | Random Forest (optimizado)     | 0.79     | 0.75     | 0.48                |
+| 1   | Decision Tree                  | 0.65     | 0.61     | 0.43                |
+| 2   | KNN                            | 0.75     | 0.69     | 0.36                |
+![[Pasted image 20260107151405.png]]
+## **6.4. Análisis Crítico: Comparación con modelos anteriores**
+
+### **6.4.1. ¿Aportó Cascading una mejora significativa?**
+
+El modelo **Cascading no aporta una mejora significativa** respecto a los mejores modelos evaluados previamente. Su **F1-macro (0.779)** es prácticamente idéntico al de *Stacking* (0.775) y ligeramente inferior al de Gradient Boosting (0.781). En términos de *accuracy* (0.810), se sitúa entre ambos, sin superar al mejor ensemble individual. Esto indica que la inclusión de las características originales mediante `passthrough=True` no introduce información adicional relevante que mejore el rendimiento global.
+
+### **6.4.2. Interpretación del comportamiento del meta-clasificador en Cascading**
+
+En la **clase *Failure***, Cascading iguala el mejor recall observado (0.620), compartido con *Stacking*, lo que confirma su utilidad para la detección de fallos críticos. No obstante, su precision (0.708) sigue estando claramente por debajo de **Gradient Boosting* (0.865), que adopta un enfoque más conservador. Por tanto, *Cascading* no mejora el compromiso precisión–sensibilidad ya alcanzado por los modelos anteriores.
+
+### **6.4.3. Eficiencia computacional**
+
+Desde el punto de vista de eficiencia computacional, *Cascading* es ligeramente más costoso que *Stacking* debido al mayor número de características, aunque la diferencia práctica es marginal y no compensa la ausencia de mejora en rendimiento. En conjunto, *Cascading* no justifica su complejidad adicional en este dataset, siendo preferible *Gradient Boosting* por su mejor rendimiento global o *Stacking* si se prioriza la detección de la clase *Failure* con una arquitectura más simple.
+
+---
+
+## 7. Alternativa: Balanced Random Forest (1 punto)
+
+El BalancedRandomForestClassifier es una variante del algoritmo de ensamble Random Forest diseñada específicamente para abordar problemas de clasificación con clases severamente desbalanceadas sin necesidad de pre-procesamiento externo (como SMOTE).
+
+Mecanismo de Funcionamiento: La diferencia fundamental respecto al Random Forest estándar reside en la etapa de construcción de cada árbol de decisión individual (proceso de bootstrapping):
+
+Submuestreo Dinámico: Para entrenar cada árbol del bosque, el algoritmo genera un subconjunto de datos temporal. En este paso, realiza un submuestreo aleatorio (random undersampling) de la clase mayoritaria para igualar el número de instancias de la clase minoritaria.
+
+Entrenamiento Equilibrado: Como resultado, cada árbol individual se entrena con un dataset perfectamente balanceado (ratio 1:1), aunque el dataset original esté descompensado.
+
+Agregación: Finalmente, el modelo combina las predicciones de todos los árboles (que han visto diferentes subconjuntos equilibrados de la clase mayoritaria) mediante votación para generar la predicción final.
+
+Ventaja Principal: Permite aprovechar la robustez del bagging (reducción de varianza) mientras mitiga el sesgo hacia la clase mayoritaria de forma nativa, explorando una mayor variedad de datos de la clase mayoritaria a través de los múltiples árboles.
+
+<div style="background-color: #d9edf7; color: #31708f; padding: 10px; border: 1px solid #bce8f1; border-radius: 4px;">
+<h4>Implementación:</h4>
+
+1. Implementa `BalancedRandomForestClassifier` de la librería `imblearn`.
+2. Entrena y valida el clasificador completo usando la métrica seleccionada. Reporta el score.
+3. **Análisis Crítico:** Compara el rendimiento de este modelo con los anteriores. ¿dirías que este modelo es más "inteligente" o simplemente más "agresivo" disparando alarmas?.
+</div>
+## **7.1. Implementación de `BalancedRandomForestClassifier`**
+
+El `BalancedRandomForestClassifier` es una variante especializada de Random Forest que aborda el desbalanceo de clases mediante submuestreo dinámico durante la construcción de cada árbol. A diferencia del Random Forest estándar que puede verse sesgado hacia la clase mayoritaria, este algoritmo garantiza que cada árbol individual se entrene con un dataset equilibrado.
+
+```python
+# Implementación del Balanced Random Forest
+brf = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('model', BalancedRandomForestClassifier(
+        n_estimators=300,
+        max_depth=10,
+        max_features='sqrt',
+        random_state=42,
+        n_jobs=-1
+    ))
+])
+```
+
+## **7.2. Entrenamiento y validación del modelo**
+
+```python
+# Entrenar el modelo
+brf.fit(X_train, y_train)
+
+# Predicciones
+y_pred_brf = brf.predict(X_test)
+```
+
+```python
+# Evaluación del modelo final
+all_results.append(evaluate_model("Balanced Random Forest", y_test, y_pred_brf))
+  
+# Convertimos la lista de diccionarios en DataFrame
+results_df = pd.DataFrame(all_results)
+  
+# Ordenamos por la métrica más importante (Recall clase 2)
+results_df = results_df.sort_values(by="Recall_Failure (C2)", ascending=False)
+  
+results_df
+```
+
+Balanced Random Forest precision recall f1-score support 0 0.855 0.792 0.822 298 1 0.733 0.818 0.773 181 2 0.607 0.612 0.609 121 accuracy 0.763 600 macro avg 0.731 0.740 0.735 600 weighted avg 0.768 0.763 0.764 600
+
+|     | Modelo                         | Accuracy | F1_macro | Recall_Failure (C2) |
+| --- | ------------------------------ | -------- | -------- | ------------------- |
+| 8   | Cascading Classifier           | 0.81     | 0.78     | 0.62                |
+| 7   | Stacking Classifier            | 0.81     | 0.78     | 0.62                |
+| 9   | Balanced Random Forest         | 0.76     | 0.73     | 0.61                |
+| 0   | Logistic Regression            | 0.61     | 0.59     | 0.56                |
+| 3   | Naive Bayes                    | 0.66     | 0.63     | 0.54                |
+| 5   | Gradient Boosting (optimizado) | 0.82     | 0.78     | 0.53                |
+| 4   | Random Forest (optimizado)     | 0.79     | 0.75     | 0.48                |
+| 1   | Decision Tree                  | 0.65     | 0.61     | 0.43                |
+| 2   | KNN                            | 0.75     | 0.69     | 0.36                |
+
+![[Pasted image 20260107151622.png]]
+### **7.3. Análisis Crítico: Comparación con modelos anteriores**
+
+#### **7.3.1. ¿Es más "inteligente" o más "agresivo"?**
+
+Los resultados revelan que **Balanced Random Forest es claramente más "agresivo" que "inteligente"**. Aunque logra aumentar el recall en la clase *Failure* de 0.545 a 0.612 (+12.3%), lo hace a costa de una caída drástica en precisión, de 0.710 a 0.607 (-14.5%). Esto confirma que el modelo está clasificando más instancias como *Failure*, pero con menor acierto.
+
+**Evidencias del comportamiento agresivo:**
+
+1. **Caída significativa de precision en Failure**: Con un valor de 0.607, Balanced RF genera aproximadamente **un 40% de falsos positivos** en sus predicciones de fallo (39.3% exactamente), comparado con el 29% del Random Forest estándar.
+
+2. **Pérdida de accuracy global**: El modelo cae de 0.780 a 0.763 (-1.7%), y su F1-macro disminuye de 0.744 a 0.735 (-1.2%), indicando un peor rendimiento agregado.
+
+3. **Deterioro en la clase Normal**: El recall en clase Normal cae significativamente de 0.866 a 0.792 (-8.5%), sugiriendo que el modelo está clasificando erróneamente instancias normales como warnings o failures.
+
+4. **F1-score de Failure permanece prácticamente igual**: Con 0.609 vs 0.617 del RF estándar, el supuesto beneficio del balanceo no se materializa en una mejora real del equilibrio precision-recall.
+
+#### **7.3.2. Interpretación del comportamiento del modelo**
+
+El submuestreo dinámico que aplica *Balanced Random Forest* tiene dos efectos contrapuestos:
+
+**Efecto positivo:**
+- Cada árbol individual ve proporcionalmente más ejemplos de la clase *Failure*, lo que mejora su capacidad de reconocer patrones minoritarios (+12.3% recall).
+
+**Efectos negativos dominantes:**
+- Al reducir artificialmente la representación de la clase *Normal* en cada árbol, el modelo pierde contexto sobre qué constituye realmente un funcionamiento normal.
+- La variabilidad natural de las turbinas en estado normal puede confundirse con patrones de fallo, generando falsos positivos.
+- El bosque en conjunto desarrolla un sesgo hacia clasificar casos ambiguos como *Failure* o *Warning*.
+
+## 8. Ajuste del Umbral de Decisión (1 punto)
+
+<div style="background-color: #d9edf7; color: #31708f; padding: 10px; border: 1px solid #bce8f1; border-radius: 4px;">
+<h4>Implementación:</h4>
+
+Si tenemos en cuenta que la rotura de una turbina equivale a una pérdida de 50.000€ y que el coste de inspección de la turbina es de 200€, es preferible que el sistema active alarmas aunque algunas sean falsas a que ignore fallos reales. Por defecto, un clasificador decide que algo es un "Fallo" si la probabilidad calculada es mayor que el 50\%. ¿Qué pasa si bajamos esa exigencia?
+
+Con ayuda de cuaquier modelo de IA generativa, prioriza drásticamente la seguridad (Recall). Tu objetivo concreto es ajustar la lógica de decisión del modelo para alcanzar un Recall mínimo del 80% en la Clase 2 (Fallo Crítico).
+
+Deberás pedirle a la IA que te explique cómo manipular el umbral de decisión (threshold) a partir de las probabilidades predichas para lograr este objetivo sin modificar el modelo ni reentrenarlo. Genera el nuevo reporte de clasificación y analiza: ¿A qué precio (en términos de Precisión) has conseguido esta seguridad?
+   
+</div>

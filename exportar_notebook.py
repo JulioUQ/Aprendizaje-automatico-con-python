@@ -121,7 +121,7 @@ def export_notebook():
             print("⚙️ Ejecutando notebook...")
             ep = CustomExecutePreprocessor(
                 progress_window,
-                timeout=600, 
+                timeout=None, 
                 kernel_name='python3'
             )
             
