@@ -35,5 +35,3 @@ Se trabaja también con el entorno Python mediante **Anaconda** y **Jupyter Note
 
 El bloque incluye vídeos introductorios, materiales docentes y ejemplos prácticos en Python.  
 Se recomienda consultar los ejemplos disponibles en el repositorio oficial de la asignatura:
-
-> Repositorio de ejemplos: _(GitLab de la UOC)_
