@@ -1,6 +1,6 @@
 # 📘 Aprendizaje Automático
 
-Este repositorio reúne varias prácticas desarrolladas en el marco de un curso de **Aprendizaje Automático**. Su finalidad es poner en práctica conceptos fundamentales del procesamiento y análisis de datos, la preparación de datasets, la reducción de dimensionalidad y la aplicación de métodos de _machine learning_, tanto supervisados como no supervisados.
+Este repositorio reúne varias prácticas de **Aprendizaje Automático**, con la finalidad de poner en práctica conceptos fundamentales del procesamiento y análisis de datos, la preparación de datasets, la reducción de dimensionalidad y la aplicación de métodos de _machine learning_, tanto supervisados como no supervisados.
 
 Las actividades incluidas están organizadas en distintos bloques temáticos y se ejecutan en **Python** utilizando herramientas habituales del ecosistema científico, como _Anaconda_, _Jupyter Notebooks_ y librerías especializadas para análisis y modelado.
 
