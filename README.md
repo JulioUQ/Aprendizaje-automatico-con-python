@@ -1,10 +1,22 @@
-# 📘 Aprendizaje Automático
+# Prácticas · Aprendizaje automático con Python
+
+Cuadernos y ejercicios de aprendizaje automático que recorren la preparación de datos y la evaluación de modelos.
+
+## Tecnologías
+
+Python y Jupyter
+
+## Explorar el repositorio
+
+- [`Bloque 1 - Introducción al aprendizaje automático`](./Bloque%201%20-%20Introducci%C3%B3n%20al%20aprendizaje%20autom%C3%A1tico)
+
+## Documentación
 
 Este repositorio reúne varias prácticas de **Aprendizaje Automático**, con la finalidad de poner en práctica conceptos fundamentales del procesamiento y análisis de datos, la preparación de datasets, la reducción de dimensionalidad y la aplicación de métodos de _machine learning_, tanto supervisados como no supervisados.
 
 Las actividades incluidas están organizadas en distintos bloques temáticos y se ejecutan en **Python** utilizando herramientas habituales del ecosistema científico, como _Anaconda_, _Jupyter Notebooks_ y librerías especializadas para análisis y modelado.
 
-## 📌 Contenidos del repositorio
+#### 📌 Contenidos del repositorio
 
 El repositorio incluye prácticas centradas en:
 
@@ -17,15 +29,14 @@ El repositorio incluye prácticas centradas en:
 - **Aplicación práctica de técnicas de machine learning**  
     Uso de modelos y métricas relevantes para interpretar y comparar resultados.
 
-## 🎯 Objetivo general
+#### 🎯 Objetivo general
 
 Proporcionar un entorno práctico para desarrollar habilidades fundamentales en el análisis de datos y la aplicación de algoritmos de aprendizaje automático, mediante actividades guiadas y orientadas a problemas reales.
 
-## 🛠️ Tecnologías y herramientas utilizadas
+#### 🛠️ Tecnologías y herramientas utilizadas
 
 - Python 3
 - Anaconda / entornos virtuales
 - Jupyter Notebook
 - NumPy, Pandas, Matplotlib
 - Scikit-learn y librerías afines
-
